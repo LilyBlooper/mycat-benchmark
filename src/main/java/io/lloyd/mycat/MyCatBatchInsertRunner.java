@@ -18,6 +18,7 @@ public class MyCatBatchInsertRunner {
 	public static void main(String[] args) throws Exception {
 		String from = args[0];
 		String size = args[1];
+		String type = args[2];
 		if (from == null || size == null) {
 			throw new IllegalArgumentException("不传参数怎么运行!! :p");
 		}
@@ -26,7 +27,12 @@ public class MyCatBatchInsertRunner {
 		}
 		int startFrom = Integer.parseInt(from);
 		int batchSize = Integer.parseInt(size);
-		testInsertOneByOne(startFrom, batchSize);
+		if (type.equals("1")) {
+			testInsertOneByOne(startFrom, batchSize);
+		}
+		if (type.equals("2")) {
+			testInsertOneByOneBarTable(startFrom, batchSize);
+		}
 		// testInsertOneByOne(10000, 10000);
 		// testInsertBatch(10000, 10000);
 	}
@@ -46,6 +52,26 @@ public class MyCatBatchInsertRunner {
 		}
 		long endTime = System.currentTimeMillis();
 		System.out.println("testInsertOneByOne 整体耗费了" + (endTime - startTime) + "毫秒");
+		for (String log : logs) {
+			System.out.println(log);
+		}
+	}
+
+	/**
+	 * 测试一个一个顺序插入,每次都新建连接
+	 *
+	 * @param startFrom
+	 * @param size
+	 */
+	private static void testInsertOneByOneBarTable(int startFrom, int size) {
+		List<Foo> foos = buildEntity(startFrom, size);
+		List<String> logs = new ArrayList<>();
+		long startTime = System.currentTimeMillis();
+		for (int i = 0; i < size; i++) {
+			logs.add(insertOneBarTable(foos.get(i)));
+		}
+		long endTime = System.currentTimeMillis();
+		System.out.println("testInsertOneByOneBarTable 整体耗费了" + (endTime - startTime) + "毫秒");
 		for (String log : logs) {
 			System.out.println(log);
 		}
@@ -80,6 +106,29 @@ public class MyCatBatchInsertRunner {
 			JdbcHelper.closeConnection(conn);
 		}
 		String log = "insert one log：db-read-costs:" + (System.currentTimeMillis() - startTIme)
+				+ "millis!";
+		return log;
+	}
+
+	private static String insertOneBarTable(Foo foo) {
+		long startTIme = System.currentTimeMillis();
+		String sql = "insert into bar_table (user_id ,message,c_date) values (?,?,?)";
+		Connection conn = null;
+		PreparedStatement ps = null;
+		try {
+			conn = DBHandler.getConn();
+			ps = conn.prepareStatement(sql);
+			ps.setLong(1, foo.getUid());
+			ps.setString(2, foo.getText());
+			ps.setDate(3, java.sql.Date.valueOf(java.time.LocalDate.now()));
+			ps.executeUpdate();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+			JdbcHelper.closeStatement(ps);
+			JdbcHelper.closeConnection(conn);
+		}
+		String log = "insertOneBarTable：db-read-costs:" + (System.currentTimeMillis() - startTIme)
 				+ "millis!";
 		return log;
 	}
